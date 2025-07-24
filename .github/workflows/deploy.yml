@@ -1,0 +1,44 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build-end-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 환경 설정
+        run: |
+          # GitHub Secrets의 값을 환경 변수로 설정
+          echo "API_URL=${{ secrets.API_URL }}" >> $GITHUB_ENV
+          echo "NODE_ENV=production" >> $GITHUB_ENV
+
+      - name: Node.js 설정
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "npm"
+
+      - name: 의존성 설치
+        run: npm ci
+
+      - name: 빌드
+        run: npm run build
+        env:
+          NEXT_PUBLIC_API_URL: ${{ secrets.API_URL }}
+
+      - name: Docker 이미지 빌드
+        run: |
+          docker build -t my-nextjs-app:${{ github.sha }} .
+          docker tag my-nextjs-app:${{ github.sha }} my-nextjs-app:latest
+
+      - name: 테스트 결과 업로드
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: test-results
+          path: coverage/
