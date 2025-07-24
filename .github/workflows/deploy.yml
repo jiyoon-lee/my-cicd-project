@@ -1,0 +1,65 @@
+# 최종 워크플로우 예시
+name: Complete CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  quality-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "npm"
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run type-check
+      - run: npm run test:ci
+
+      - name: SonarCloud 코드 품질 검사
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  build:
+    needs: quality-checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "npm"
+
+      - run: npm ci
+      - run: npm run build
+
+      - name: 빌드 아티팩트 저장
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-files
+          path: .next/
+
+  deploy-staging:
+    if: github.ref == 'refs/heads/develop'
+    needs: [quality-checks, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: 스테이징 배포 시뮬레이션
+        run: echo "🚀 스테이징 환경에 배포 중..."
+
+  deploy-production:
+    if: github.ref == 'refs/heads/main'
+    needs: [quality-checks, build]
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: 프로덕션 배포 시뮬레이션
+        run: echo "🎉 프로덕션 환경에 배포 중..."
